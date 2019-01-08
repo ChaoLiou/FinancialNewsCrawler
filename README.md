@@ -6,9 +6,9 @@
         - > `Helper: FinCalendarCrawler.exe --StartsWith=2018-01-01 --Locale=zh-tw|zh-cn|en-us [--Period=day|week|month] [--DoUpdate]`
         - required: --StartsWith, --Locale
         - optional: --Period(default is `week`), --DoUpdate
-​
+
 |||
-|---|---|
+|:-:|:-:|
 |crawling on `zh-tw` site in one day|`FinCalendarCrawler.exe --StartsWith=2018-01-01 --Locale=zh-tw --Period=day`|
 |crawling on `zh-tw` site in execute one week|`FinCalendarCrawler.exe --StartsWith=2018-01-01 --Locale=zh-tw --Period=week`|
 |crawling on `zh-tw` site in execute one month|`FinCalendarCrawler.exe --StartsWith=2018-01-01 --Locale=zh-tw --Period=month`|
