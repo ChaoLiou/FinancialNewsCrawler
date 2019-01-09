@@ -1,11 +1,11 @@
 # FinancialNewsCrawler
 
-- This is a console application for crawling `dailyfx's Economic Calendar`, including [zh-tw](https://www.dailyfx.com.hk/cn/calendar), [zh-cn](https://www.dailyfx.com.hk/calendar) and [en-us](https://www.dailyfx.com/calendar) sites, and it will export `*.csv` files or update through probis financial calendar api to get the latest data.
+- This is a console application for crawling `dailyfx's Economic Calendar`, including [zh-tw](https://www.dailyfx.com.hk/cn/calendar), [zh-cn](https://www.dailyfx.com.hk/calendar) and [en-us](https://www.dailyfx.com/calendar) sites, and it will export `*.csv` files.
 - There are different ways to use:
     - executing with no arguments -> it will show all required or optional arguments you can pass in (case-insensitive).
         - > `Helper: FinCalendarCrawler.exe --StartsWith=2018-01-01 --Locale=zh-tw|zh-cn|en-us [--Period=day|week|month] [--DoUpdate]`
         - required: --StartsWith, --Locale
-        - optional: --Period(default is `week`), --DoUpdate
+        - optional: --Period(default is `week`), --DoUpdate(sorry, it needs to do some coding...)
 
 |||
 |:-|:-|
