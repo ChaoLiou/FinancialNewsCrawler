@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace FinCalendarParser
 {
@@ -24,8 +20,6 @@ namespace FinCalendarParser
                 case PeriodType.Month:
                     dateTime = dateTime.AddMonths(1).AddDays(-1);
                     break;
-                case PeriodType.Day:
-                    break;
                 default:
                     break;
             }
@@ -38,14 +32,18 @@ namespace FinCalendarParser
             return n.ToString().PadLeft(length, '0');
         }
 
-        public static Locale ParseToLocale(this string locale_str)
+        public static PeriodType ParseToPeriod(this string periodStr)
         {
-            return (Locale)Enum.Parse(typeof(Locale), locale_str.Replace("-", string.Empty), true);
+            return !string.IsNullOrWhiteSpace(periodStr) ?
+                (PeriodType)Enum.Parse(typeof(PeriodType), periodStr, true) :
+                PeriodType.Week;
         }
 
-        public static PeriodType ParseToPeriod(this string period_str)
+        public static SourceType ParseToSource(this string sourceStr)
         {
-            return (PeriodType)Enum.Parse(typeof(PeriodType), period_str, true);
+            return !string.IsNullOrWhiteSpace(sourceStr) ?
+                (SourceType)Enum.Parse(typeof(SourceType), sourceStr, true) :
+                SourceType.DailyFX;
         }
     }
 }

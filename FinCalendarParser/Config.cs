@@ -2,15 +2,8 @@
 
 namespace FinCalendarParser
 {
-    public class Settings
+    public class Config
     {
-        public static Dictionary<Locale, string> WebAPIUrlFormatMap = new Dictionary<Locale, string>()
-        {
-            {Locale.ZhCN, "https://www.dailyfx.com.hk/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
-            {Locale.ZhTW, "https://www.dailyfx.com.hk/cn/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
-            {Locale.EnUS, "https://www.dailyfx.com/calendar?previous=true&week={0}/{1}{2}"}
-        };
-
         public static Dictionary<Locale, string> LocaleAliasMap = new Dictionary<Locale, string>()
         {
             {Locale.ZhTW, "cn"},
@@ -35,8 +28,13 @@ namespace FinCalendarParser
 
     public enum PeriodType
     {
-        Day,
         Week,
         Month
+    }
+
+    public enum SourceType
+    {
+        DailyFX,
+        Jin10
     }
 }
