@@ -1,42 +1,57 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace FinCalendarParser
 {
     public class RawEvent
     {
-        public string Date
+        public RawEvent(Locale locale, string date)
+        {
+            Locale = locale;
+            var m = Regex.Match(date, @"^(?<y>\d{4}).(?<m>\d{2}).(?<d>\d{2}).");
+            if (m.Success)
+            {
+                date = string.Format("{0}-{1}-{2}", m.Groups["y"].Value, m.Groups["m"].Value, m.Groups["d"].Value);
+            }
+            DateTime dateTime;
+            if (DateTime.TryParse(date, out dateTime))
+            {
+                if (Locale == Locale.EnUS)
+                {
+                    dateTime = dateTime.AddHours(8);
+                }
+            }
+            Date = dateTime;
+        }
+        public Locale Locale { get; set; }
+        public DateTime Date { get; set; }
+        public string Time
         {
             get
             {
-                return _date;
+                return _time;
             }
             set
             {
-                var m = Regex.Match(value, @"^(?<y>\d{4}).(?<m>\d{2}).(?<d>\d{2}).");
-                if (m.Success)
+                _time = value;
+                if (!string.IsNullOrWhiteSpace(_time))
                 {
-                    _date = string.Format("{0}-{1}-{2}", m.Groups["y"].Value, m.Groups["m"].Value, m.Groups["d"].Value);
-                }
-                else
-                {
-                    DateTime dateTime;
-                    if (DateTime.TryParse(value, out dateTime))
+                    var m = Regex.Match(_time, @"^(?<h>\d{2}):(?<m>\d{2})");
+                    if (m.Success)
                     {
-                        _date = dateTime.ToString(@"yyyy-MM-dd");
-                    }
-                    else
-                    {
-                        _date = value;
+                        var hour = int.Parse(m.Groups["h"].Value);
+                        var minute = int.Parse(m.Groups["m"].Value);
+                        Date = new DateTime(Date.Year, Date.Month, Date.Day, hour, minute, 0);
+                        if (Locale == Locale.EnUS)
+                        {
+                            Date = Date.AddHours(8);
+                        }
                     }
                 }
             }
         }
-        public string Time { get; set; }
         public string Currency { get; set; }
         public string Description
         {
@@ -47,6 +62,7 @@ namespace FinCalendarParser
             set
             {
                 _description = formatText(string.IsNullOrWhiteSpace(Time) ? value : value.Replace(Time, string.Empty).Trim());
+                _description = formatText(string.IsNullOrWhiteSpace(Currency) ? _description : _description.Replace(Currency.ToUpper(), string.Empty).Trim());
             }
         }
         public string Importance
@@ -99,17 +115,17 @@ namespace FinCalendarParser
         private string _actual;
         private string _previous;
         private string _description;
-        private string _date;
         private string _importance;
+        private string _time;
         public override string ToString()
         {
             Memo = string.IsNullOrWhiteSpace(Memo) ? string.Empty : Memo;
-            return string.Format("\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\",\"{5}\",\"{6}\",\"{7}\",\"{8}\"", Date, Time, Currency, Description, Importance, Actual, Forecast, Previous, Memo);
+            return string.Format("\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\",\"{5}\",\"{6}\",\"{7}\",\"{8}\"", Date.ToString("yyyy/MM/dd"), !string.IsNullOrWhiteSpace(Time) ? Date.ToString("HH:mm") : "", Currency, Description, Importance, Previous, Forecast, Actual, Memo);
         }
 
         private static string formatText(string text)
         {
-            return "<span style='color:#000000'>" + (string.IsNullOrWhiteSpace(text) ? string.Empty : text) + "</span>";
+            return (string.IsNullOrWhiteSpace(text) ? string.Empty : text);
         }
 
         private static Dictionary<string, string> importanceMap_EnUS = new Dictionary<string, string>()

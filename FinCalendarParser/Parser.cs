@@ -2,9 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Net;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace FinCalendarParser
 {
@@ -19,12 +18,12 @@ namespace FinCalendarParser
         public List<RawEvent> Process(DateTime dateTime_first, PeriodType periodType)
         {
             var dateTime_last = dateTime_first.AddXDays(periodType);
-            if (Locale == FinCalendarParser.Locale.EnUS)
+            if (Locale == Locale.EnUS)
             {
                 var list = new List<RawEvent>();
                 var dateTime_tmp = DateTime.Parse(dateTime_first.ToString());
 
-                while (dateTime_tmp.CompareTo(dateTime_last) <= 0)
+                while (dateTime_tmp.CompareTo(dateTime_last) < 0)
                 {
                     var dateTime_monday = dateTime_tmp.StartOfWeek(DayOfWeek.Sunday);
                     var url = string.Format(Settings.WebAPIUrlFormatMap[Locale],
@@ -36,7 +35,7 @@ namespace FinCalendarParser
                     dateTime_tmp = dateTime_tmp.AddXDays(PeriodType.Week);
                 }
 
-                return list.Where(x => DateTime.Parse(x.Date).CompareTo(dateTime_first) >= 0 && DateTime.Parse(x.Date).CompareTo(dateTime_last) <= 0).ToList();
+                return list.Where(x => DateTime.Parse(x.Date.ToString("yyyy-MM-dd")).CompareTo(dateTime_first) >= 0 && DateTime.Parse(x.Date.ToString("yyyy-MM-dd")).CompareTo(dateTime_last) < 0).ToList();
             }
             else
             {
@@ -85,7 +84,7 @@ namespace FinCalendarParser
                                     var m = Regex.Match(text, @"^\d{2}:\d{2}$");
                                     if (m.Success || string.IsNullOrWhiteSpace(text))
                                     {
-                                        re = new RawEvent() { Date = datetimeInformation };
+                                        re = new RawEvent(Locale, datetimeInformation);
                                     }
                                     else
                                     {
@@ -118,6 +117,8 @@ namespace FinCalendarParser
 
         private List<RawEvent> processFrom_zhCN_zhTW(string url)
         {
+            ServicePointManager.Expect100Continue = true;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var dom = CQ.CreateFromUrl(url);
             return processFrom_zhCN_zhTW(dom);
         }
@@ -149,7 +150,7 @@ namespace FinCalendarParser
                                     var m = Regex.Match(text, @"^\d{2}:\d{2}$");
                                     if (m.Success || string.IsNullOrWhiteSpace(text))
                                     {
-                                        re = new RawEvent() { Date = datetimeInformation };
+                                        re = new RawEvent(Locale, datetimeInformation);
                                     }
                                     else
                                     {

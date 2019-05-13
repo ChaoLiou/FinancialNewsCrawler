@@ -61,11 +61,6 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Newtonsoft.Json.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\FinCalendarParser\FinCalendarParser.csproj">
       <Project>{ef22c7e3-8315-49c7-9b35-460b102f97f5}</Project>
       <Name>FinCalendarParser</Name>

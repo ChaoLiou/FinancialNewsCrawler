@@ -1,40 +1,39 @@
-﻿using CsQuery;
-using FinCalendarParser;
-using Newtonsoft.Json;
+﻿using FinCalendarParser;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Reflection;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace FinCalendarCrawler
 {
     public class Args
     {
-        public string StartsWith { get; set; }
+        public string Date { get; set; }
         public string Locale { get; set; }
         public string Period { get; set; }
-        public bool DoUpdate { get; set; }
+        public bool Help { get; set; }
 
         public static bool Parsing(string[] args, out Args argsObj)
         {
             argsObj = new Args()
             {
-                StartsWith = filter(args, "--startswith="),
-                Locale = filter(args, "--locale="),
-                Period = filter(args, "--period="),
-                DoUpdate = filter(args, "--doupdate") != null
+                Date = _Filter(args, "--date="),
+                Locale = _Filter(args, "--locale="),
+                Period = _Filter(args, "--period="),
+                Help = _Contains(args, "--help")
             };
 
-            return !string.IsNullOrWhiteSpace(argsObj.StartsWith) && !string.IsNullOrWhiteSpace(argsObj.Locale);
+            return !string.IsNullOrWhiteSpace(argsObj.Date) && !string.IsNullOrWhiteSpace(argsObj.Locale);
         }
 
-        private static string filter(string[] args, string contains)
+        private static bool _Contains(string[] args, string contains)
+        {
+            return args.Any(arg => arg.ToLower() == contains);
+        }
+
+        private static string _Filter(string[] args, string contains)
         {
             return args.Where(arg => arg.ToLower().StartsWith(contains))
                 .Select(x => x.Replace(contains, string.Empty)).FirstOrDefault();
@@ -42,85 +41,70 @@ namespace FinCalendarCrawler
 
         public static string Helper()
         {
-            var usages_format = new string[] { "--{0}=2018-01-01", "--{0}=zh-tw|zh-cn|en-us", "[--{0}=day|week|month]", "[--{0}]" };
+            var usages_format = new string[] { "[--{0}=2018-01-01|{{today}}]", "[--{0}={{locale}}|{{all of locales}}]", "[--{0}={{period}}]", "[--{0}]" };
             return "Helper: FinCalendarCrawler.exe " + string.Join(" ",
                 typeof(Args).GetProperties()
-                .Select((x, i) => string.Format(usages_format[i], x.Name)));
+                .Select((x, i) => string.Format(usages_format[i], x.Name.ToLower()))) + "\r\n*locale:[zh-tw,zh-cn,en-us]\r\n*period:[day,week,month], default is week";
         }
     }
 
     class Program
     {
-        private static string _apiUrl = ConfigurationManager.AppSettings["ApiUrl"];
-
         static void Main(string[] args)
         {
-            Args argsObj;
-            if (args.Any() && Args.Parsing(args, out argsObj))
+            Args argsObj = null;
+            if (Args.Parsing(args, out argsObj))
             {
                 var locale = argsObj.Locale.ParseToLocale();
                 var periodType = PeriodType.Week;
 
-                if (args.Length >= 3)
+                if (argsObj.Period != null)
+                {
+                    periodType = argsObj.Period.ParseToPeriod();
+                }
+                
+                process(DateTime.Parse(argsObj.Date), periodType, locale);
+                
+            }
+            else if (argsObj.Help)
+            {
+                Console.WriteLine(Args.Helper());
+            }
+            else
+            {
+                var dateTime = argsObj.Date != null ? DateTime.Parse(argsObj.Date) : DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd"));
+                var periodType = PeriodType.Week;
+
+                if (argsObj.Period != null)
                 {
                     periodType = argsObj.Period.ParseToPeriod();
                 }
 
-                var parser = new Parser(locale);
-                var list = parser.Process(DateTime.Parse(argsObj.StartsWith), periodType);
-                outputCSV(list, argsObj.StartsWith, locale, periodType);
-
-                if (argsObj.DoUpdate)
+                if (argsObj.Locale != null)
                 {
-                    updateToProbisFinCalendarAPI(list, locale);
+                    var locale = argsObj.Locale.ParseToLocale();
+                    process(dateTime, periodType, locale);
+                } else
+                {
+                    process(dateTime, periodType, Locale.EnUS);
+                    process(dateTime, periodType, Locale.ZhCN);
+                    process(dateTime, periodType, Locale.ZhTW);
                 }
-            }
-            else
-            {
-                Console.WriteLine(Args.Helper());
-                Console.Read();
             }
         }
 
-        private static void updateToProbisFinCalendarAPI(List<RawEvent> list, Locale locale)
+        private static void process(DateTime dateTime, PeriodType periodType, Locale locale)
         {
-            try
-            {
-                System.Net.ServicePointManager.Expect100Continue = false;
-                using (var wc = new WebClient())
-                {
-                    wc.Encoding = Encoding.UTF8;
-                    wc.Headers.Add(HttpRequestHeader.ContentType, "application/x-www-form-urlencoded");
-                    var json = JsonConvert.SerializeObject(list.Select((x, i) => new
-                    {
-                        id = i,
-                        released_date = x.Date,
-                        released_time = x.Time,
-                        country = x.Currency,
-                        @event = x.Description,
-                        importance = x.Importance,
-                        previous = x.Previous,
-                        forecast = x.Forecast,
-                        actual = x.Actual,
-                        valid_date = "",
-                        state = "new",
-                        locale = Settings.LocaleAliasMap[locale]
-                    }));
-                    
-                    wc.UploadString(_apiUrl, "data=" + Uri.EscapeDataString(json));
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            var parser = new Parser(locale);
+            var list = parser.Process(dateTime, periodType);
+            _OutputCSV(list, dateTime, locale, periodType);
         }
 
-        private static void outputCSV(List<RawEvent> list, string dateTime, Locale locale, PeriodType periodType)
+        private static void _OutputCSV(List<RawEvent> list, DateTime dateTime, Locale locale, PeriodType periodType)
         {
-            var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Actual,Forecast,Previous,Memo" };
+            var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Memo" };
             csvContents.AddRange(list.Select(x => x.ToString()));
-            var fileName = "RawEvents_" + dateTime + "_" + periodType + "." + locale + ".csv";
+            var fileName = "Economics_" + dateTime.ToString("yyyy-MM-dd") + "_" + periodType + "." + locale + ".csv";
             var destination = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), fileName);
             File.WriteAllLines(destination, csvContents, Encoding.UTF8);
         }
