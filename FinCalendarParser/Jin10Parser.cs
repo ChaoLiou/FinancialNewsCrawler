@@ -12,7 +12,6 @@ namespace FinCalendarParser
         private static string _APIUrlFT = "https://cdn-rili.jin10.com/data/{0}/{1}{2}/economics.json";
         public List<Jin10Event> Process(DateTime dateTime, PeriodType periodType)
         {
-            List<Jin10RawEvent> rawEvents;
             var dateTimesInRange = new List<DateTime>();
             switch (periodType)
             {
@@ -34,15 +33,15 @@ namespace FinCalendarParser
                 default:
                     break;
             }
-            return _Process(dateTimesInRange).Select(re => new Jin10Event(re)).ToList();
+            return Process(dateTimesInRange).Select(re => new Jin10Event(re)).ToList();
         }
 
-        private IEnumerable<Jin10RawEvent> _Process(List<DateTime> dateTimes)
+        private IEnumerable<Jin10RawEvent> Process(List<DateTime> dateTimes)
         {
-            return dateTimes.SelectMany(dt => _Process(dt));
+            return dateTimes.SelectMany(dt => Process(dt));
         }
 
-        private IEnumerable<Jin10RawEvent> _Process(DateTime dateTime)
+        private IEnumerable<Jin10RawEvent> Process(DateTime dateTime)
         {
             using (var wc = new WebClient())
             {

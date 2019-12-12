@@ -61,8 +61,8 @@ namespace FinCalendarParser
             }
             set
             {
-                _Description = _FormatText(string.IsNullOrWhiteSpace(Time) ? value : value.Replace(Time, string.Empty).Trim());
-                _Description = _FormatText(string.IsNullOrWhiteSpace(Currency) ? _Description : _Description.Replace(Currency.ToUpper(), string.Empty).Trim());
+                _Description = FormatText(string.IsNullOrWhiteSpace(Time) ? value : value.Replace(Time, string.Empty).Trim());
+                _Description = FormatText(string.IsNullOrWhiteSpace(Currency) ? _Description : _Description.Replace(Currency.ToUpper(), string.Empty).Trim());
             }
         }
         public string Importance
@@ -73,7 +73,7 @@ namespace FinCalendarParser
             }
             set
             {
-                _Importance = value.Replace(" L", string.Empty).Replace(" M", string.Empty).Replace(" H", string.Empty).Trim();
+                _Importance = value.Replace(" L", string.Empty).Replace(" M", string.Empty).Replace(" H", string.Empty).Trim().ToLower();
                 _Importance = _ImportanceMapFromEnUSToZhTW.Select(x => x.Value).Contains(_Importance) ? _Importance : _ImportanceMapFromEnUSToZhTW[_Importance];
             }
         }
@@ -85,7 +85,7 @@ namespace FinCalendarParser
             }
             set
             {
-                _Actual = _FormatText(value);
+                _Actual = FormatText(value);
             }
         }
         public string Forecast
@@ -96,7 +96,7 @@ namespace FinCalendarParser
             }
             set
             {
-                _Forecast = _FormatText(value);
+                _Forecast = FormatText(value);
             }
         }
         public string Previous
@@ -107,7 +107,7 @@ namespace FinCalendarParser
             }
             set
             {
-                _Previous = _FormatText(value);
+                _Previous = FormatText(value);
             }
         }
         public string Memo { get; set; }
@@ -123,14 +123,14 @@ namespace FinCalendarParser
             return string.Format("\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\",\"{5}\",\"{6}\",\"{7}\",\"{8}\"", Date.ToString("yyyy/MM/dd"), !string.IsNullOrWhiteSpace(Time) ? Date.ToString("HH:mm") : "", Currency, Description, Importance, Previous, Forecast, Actual, Memo);
         }
 
-        private static string _FormatText(string text)
+        private static string FormatText(string text)
         {
             return (string.IsNullOrWhiteSpace(text) ? string.Empty : text);
         }
 
-        private static Dictionary<string, string> _ImportanceMapFromEnUSToZhTW = new Dictionary<string, string>()
+        private static readonly Dictionary<string, string> _ImportanceMapFromEnUSToZhTW = new Dictionary<string, string>()
         {
-            {"High", "高"}, {"Medium", "中"}, {"Low", "低"}, {"", ""}
+            {"high", "高"}, {"medium", "中"}, {"low", "低"}, {"", ""}
         };
     }
 }

@@ -27,20 +27,15 @@ namespace FinCalendarCrawler
         {
             argsObj = new Args()
             {
-                Source = _Filter(args, "--src="),
-                Date = _Filter(args, "--date="),
-                Period = _Filter(args, "--period=")
+                Source = Filter(args, "--src="),
+                Date = Filter(args, "--date="),
+                Period = Filter(args, "--period=")
             };
 
             return !string.IsNullOrWhiteSpace(argsObj.Source);
         }
 
-        private static bool _Contains(string[] args, string contains)
-        {
-            return args.Any(arg => arg.ToLower() == contains);
-        }
-
-        private static string _Filter(string[] args, string contains)
+        private static string Filter(string[] args, string contains)
         {
             return args.Where(arg => arg.ToLower().StartsWith(contains))
                 .Select(x => x.Replace(contains, string.Empty)).FirstOrDefault();
@@ -66,8 +61,7 @@ namespace FinCalendarCrawler
     {
         static void Main(string[] args)
         {
-            Args argsObj = null;
-            if (Args.Parsing(args, out argsObj))
+            if (Args.Parsing(args, out Args argsObj))
             {
                 var dateTime = argsObj.Date != null ?
                     DateTime.Parse(argsObj.Date) :
@@ -78,16 +72,16 @@ namespace FinCalendarCrawler
                 switch (sourceType)
                 {
                     case SourceType.DailyFX:
-                        _ProcessDailyFX(dateTime, periodType, Locale.EnUS);
-                        _ProcessDailyFX(dateTime, periodType, Locale.ZhCN);
-                        _ProcessDailyFX(dateTime, periodType, Locale.ZhTW);
+                        ProcessDailyFX(dateTime, periodType, Locale.EnUS);
+                        ProcessDailyFX(dateTime, periodType, Locale.ZhCN);
+                        ProcessDailyFX(dateTime, periodType, Locale.ZhTW);
                         break;
                     case SourceType.Jin10:
-                        _ProcessJin10(dateTime, periodType);
+                        ProcessJin10(dateTime, periodType);
                         break;
                     default:
                         break;
-                }               
+                }
             }
             else
             {
@@ -95,21 +89,21 @@ namespace FinCalendarCrawler
             }
         }
 
-        private static void _ProcessDailyFX(DateTime dateTime, PeriodType periodType, Locale locale)
+        private static void ProcessDailyFX(DateTime dateTime, PeriodType periodType, Locale locale)
         {
             var parser = new DailyFXParser(locale);
             var list = parser.Process(dateTime, periodType);
-            _OutputDailyFXCSV(list, dateTime, locale, periodType);
+            OutputDailyFXCSV(list, dateTime, locale, periodType);
         }
 
-        private static void _ProcessJin10(DateTime dateTime, PeriodType periodType)
+        private static void ProcessJin10(DateTime dateTime, PeriodType periodType)
         {
             var parser = new Jin10Parser();
             var list = parser.Process(dateTime, periodType);
-            _OutputJin10CSV(list, dateTime, periodType);
+            OutputJin10CSV(list, dateTime, periodType);
         }
 
-        private static void _OutputJin10CSV(List<Jin10Event> list, DateTime dateTime, PeriodType periodType)
+        private static void OutputJin10CSV(List<Jin10Event> list, DateTime dateTime, PeriodType periodType)
         {
             var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Revised,Affect" };
             csvContents.AddRange(list.Select(x => x.ToString()));
@@ -118,7 +112,7 @@ namespace FinCalendarCrawler
             File.WriteAllLines(destination, csvContents, Encoding.UTF8);
         }
 
-        private static void _OutputDailyFXCSV(List<DailyFXEvent> list, DateTime dateTime, Locale locale, PeriodType periodType)
+        private static void OutputDailyFXCSV(List<DailyFXEvent> list, DateTime dateTime, Locale locale, PeriodType periodType)
         {
             var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Memo" };
             csvContents.AddRange(list.Select(x => x.ToString()));

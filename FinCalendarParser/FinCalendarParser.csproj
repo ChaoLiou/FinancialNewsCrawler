@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Model\DailyFXRaw_en.cs" />
     <Compile Include="ExtensionMethods.cs" />
     <Compile Include="DailyFXParser.cs" />
     <Compile Include="Jin10Event.cs" />

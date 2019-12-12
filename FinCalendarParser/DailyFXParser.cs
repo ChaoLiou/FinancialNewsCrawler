@@ -1,8 +1,10 @@
 ﻿using CsQuery;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace FinCalendarParser
@@ -13,7 +15,7 @@ namespace FinCalendarParser
         {
             {Locale.ZhCN, "https://www.dailyfx.com.hk/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
             {Locale.ZhTW, "https://www.dailyfx.com.hk/cn/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
-            {Locale.EnUS, "https://www.dailyfx.com/calendar?previous=true&week={0}/{1}{2}"}
+            {Locale.EnUS, "https://www.dailyfx.com/economic-calendar/selectedDateData/{0}-{1}-{2}"}
         };
 
         public Locale Locale { get; set; }
@@ -38,7 +40,7 @@ namespace FinCalendarParser
                         dateTimeMonday.Month.PaddingZero(),
                         dateTimeMonday.Day.PaddingZero());
 
-                    list.AddRange(_ProcessFromEnUS(url));
+                    list.AddRange(ProcessFromEnUS(url));
                     dateTimeTmp = dateTimeTmp.AddXDays(PeriodType.Week);
                 }
 
@@ -53,84 +55,45 @@ namespace FinCalendarParser
                     dateTimeLastDay.Year,
                     dateTimeLastDay.Month.PaddingZero(),
                     dateTimeLastDay.Day.PaddingZero());
-                return _ProcessInZhCNnZhTW(url);
+                return ProcessInZhCNnZhTW(url);
             }
         }
 
-        private List<DailyFXEvent> _ProcessFromEnUS(string url)
+        private List<DailyFXEvent> ProcessFromEnUS(string url)
         {
-            var dom = CQ.CreateFromUrl(url);
-            return _ProcessInEnUS(dom);
-        }
-
-        private List<DailyFXEvent> _ProcessInEnUS(CQ dom)
-        {
-            var eventGroupsDaily = dom["table.tab-pane"];
-            var list = new List<DailyFXEvent>();
-
-            foreach (var eventGroup in eventGroupsDaily.Select(x => x.Cq()))
+            using (var wc = new WebClient())
             {
-                var datetimeInformation = eventGroup.Find("tr:first-child").Text().Trim();
-                var events = eventGroup.Find("tr.event");
-                DailyFXEvent re = null;
-
-                foreach (var e in events.Select(x => x.Cq()))
+                var data = wc.DownloadData(url);
+                var dataString = Encoding.UTF8.GetString(data);
+                var raws = JsonConvert.DeserializeObject<List<DailyFXRaw_en>>(dataString);
+                return raws.Select(x => 
                 {
-                    var fields = e.Find("td.calendar-td");
-                    foreach (var fieldWithIndex in fields.Select((x, i) => new { Value = x.Cq(), Index = i }))
+                    var dt = (new DateTime(1970, 1, 1)).AddSeconds(x.eventDate);
+                    var timeString = dt.ToString(@"HH:mm");
+                    return new DailyFXEvent(Locale.EnUS, dt.ToString(@"yyyy-MM-dd"))
                     {
-                        if (fieldWithIndex.Index < 8)
-                        {
-                            var propertyName = Config.ColumnMap[Locale][fieldWithIndex.Index];
-                            if (!string.IsNullOrWhiteSpace(propertyName))
-                            {
-                                var text = fieldWithIndex.Value.Text().Trim();
-
-                                if (fieldWithIndex.Index == 0)
-                                {
-                                    var m = Regex.Match(text, @"^\d{2}:\d{2}$");
-                                    if (m.Success || string.IsNullOrWhiteSpace(text))
-                                    {
-                                        re = new DailyFXEvent(Locale, datetimeInformation);
-                                    }
-                                    else
-                                    {
-                                        re.Memo = text;
-                                        continue;
-                                    }
-                                }
-
-                                if (fieldWithIndex.Index < 7)
-                                {
-                                    if (propertyName == "Currency")
-                                    {
-                                        text = fieldWithIndex.Value.Find("div").Attr("data-filter");
-                                    }
-
-                                    typeof(DailyFXEvent).GetProperty(propertyName).SetValue(re, text);
-                                }
-                                else
-                                {
-                                    list.Add(re);
-                                }
-                            }
-                        }
-                    }
-                }
+                        Currency = x.currency.ToUpper(),
+                        Description = x.title,
+                        Importance = x.importance,
+                        Forecast = x.forecast,
+                        Actual = x.actual,
+                        Previous = x.previous,
+                        Memo = x.comment,
+                        Time = timeString == "00:00" ? "" : timeString
+                    };
+                }).ToList();
             }
-
-            return list;
         }
 
-        private List<DailyFXEvent> _ProcessInZhCNnZhTW(string url)
+        private List<DailyFXEvent> ProcessInZhCNnZhTW(string url)
         {
             ServicePointManager.Expect100Continue = true;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var dom = CQ.CreateFromUrl(url);
-            return _ProcessInZhCNnZhTW(dom);
+            return ProcessInZhCNnZhTW(dom);
         }
 
-        private List<DailyFXEvent> _ProcessInZhCNnZhTW(CQ dom)
+        private List<DailyFXEvent> ProcessInZhCNnZhTW(CQ dom)
         {
             var eventGroupsDaily = dom["tbody"];
             var list = new List<DailyFXEvent>();
