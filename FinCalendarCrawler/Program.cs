@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace FinCalendarCrawler
 {
@@ -17,6 +18,8 @@ namespace FinCalendarCrawler
     /// --source=dailyfx --date=2019-01-01 --locale=en-us --period=month
     /// --source=jin10 --date=2019-01-01 --period=week
     /// --source=jin10 --date=2019-01-01 --period=month
+    /// --source=fx168 --date=2019-01-01 --period=week
+    /// --source=fx168 --date=2019-01-01 --period=month
     /// </summary>
     public class Args
     {
@@ -79,6 +82,9 @@ namespace FinCalendarCrawler
                     case SourceType.Jin10:
                         ProcessJin10(dateTime, periodType);
                         break;
+                    case SourceType.FX168:
+                        ProcessFX168(dateTime, periodType);
+                        break;
                     default:
                         break;
                 }
@@ -103,6 +109,13 @@ namespace FinCalendarCrawler
             OutputJin10CSV(list, dateTime, periodType);
         }
 
+        private static void ProcessFX168(DateTime dateTime, PeriodType periodType)
+        {
+            var parser = new FX168Parser();
+            var list = parser.Process(dateTime, periodType);
+            OutputFX168CSV(list, dateTime, periodType);
+        }
+
         private static void OutputJin10CSV(List<Jin10Event> list, DateTime dateTime, PeriodType periodType)
         {
             var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Revised,Affect" };
@@ -117,6 +130,15 @@ namespace FinCalendarCrawler
             var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Memo" };
             csvContents.AddRange(list.Select(x => x.ToString()));
             var fileName = "DailyFX_" + dateTime.ToString("yyyy-MM-dd") + "_" + periodType + "." + locale + ".csv";
+            var destination = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), fileName);
+            File.WriteAllLines(destination, csvContents, Encoding.UTF8);
+        }
+
+        private static void OutputFX168CSV(List<FX168Event> list, DateTime dateTime, PeriodType periodType)
+        {
+            var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Revised,DataTypeName,Type" };
+            csvContents.AddRange(list.Select(x => x.ToString()));
+            var fileName = "FX168_" + dateTime.ToString("yyyy-MM-dd") + "_" + periodType + ".csv";
             var destination = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), fileName);
             File.WriteAllLines(destination, csvContents, Encoding.UTF8);
         }

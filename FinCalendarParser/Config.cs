@@ -35,6 +35,7 @@ namespace FinCalendarParser
     public enum SourceType
     {
         DailyFX,
-        Jin10
+        Jin10,
+        FX168
     }
 }
