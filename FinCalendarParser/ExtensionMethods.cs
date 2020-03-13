@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace FinCalendarParser
 {
@@ -44,6 +46,27 @@ namespace FinCalendarParser
             return !string.IsNullOrWhiteSpace(sourceStr) ?
                 (SourceType)Enum.Parse(typeof(SourceType), sourceStr, true) :
                 SourceType.DailyFX;
+        }
+
+        public static Dictionary<string, string> ToMap(this string content)
+        {
+            var map = new Dictionary<string, string>();
+            content.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries)
+                .ToList()
+                .ForEach(line =>
+                {
+                    var parts = line.Split(',');
+                    if (parts.Length == 2)
+                    {
+                        var key = parts[0].Trim();
+                        var value = parts[1].Trim();
+                        if (!map.ContainsKey(key))
+                        {
+                            map.Add(key, value);
+                        }
+                    }
+                });
+            return map;
         }
     }
 }

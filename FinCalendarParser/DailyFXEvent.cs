@@ -25,6 +25,7 @@ namespace FinCalendarParser
             }
             Date = dateTime;
         }
+
         public Locale Locale { get; set; }
         public DateTime Date { get; set; }
         public string Time

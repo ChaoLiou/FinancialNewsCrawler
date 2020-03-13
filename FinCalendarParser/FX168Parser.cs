@@ -1,17 +1,19 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace FinCalendarParser
 {
     public class FX168Parser
     {
-        private static string _APIUrlFT = "https://financialcalendar.fx168api.com/FinancialCalendarNew/IFinancialCalendarData.ashx?user=FX168&beginDate={0}-{1}-{2}&endDate={3}-{4}-{5}";
-
+        private static string _APIUrlFT = "https://dataapi.2rich.net/InterfaceCollect/default.aspx?Code=fx168&bCode=IFinancialCalendarData{0}-{1}-{2}&succ_callback=CallbackFinanceListDataByDate&_={3}";
         public List<FX168Event> Process(DateTime dateTime, PeriodType periodType)
         {
             DateTime? dtStart = null, dtEnd = null;
@@ -32,7 +34,14 @@ namespace FinCalendarParser
 
             if (dtStart.HasValue && dtEnd.HasValue)
             {
-                return Transform(Process(dtStart.Value, dtEnd.Value));
+                DateTime date = dtStart.Value;
+                var list = new List<FX168Event>();
+                while (date.CompareTo(dtEnd.Value) <= 0)
+                {
+                    list.AddRange(Transform(Process(date)));
+                    date = date.AddDays(1);
+                }
+                return list;
             }
             else
             {
@@ -40,14 +49,32 @@ namespace FinCalendarParser
             }
         }
 
-        private FX168Raw Process(DateTime dtStart, DateTime dtEnd)
+        private FX168Raw Process(DateTime dt)
         {
             using (var wc = new WebClient())
             {
+                Console.WriteLine("Crawling on {0}...", dt.ToString(@"yyyy-MM-dd"));
                 wc.Headers.Add(HttpRequestHeader.Referer, "https://datainfo.fx168.com/calendar.shtml");
-                var url = string.Format(_APIUrlFT, dtStart.Year, dtStart.Month.PaddingZero(), dtStart.Day.PaddingZero(), dtEnd.Year, dtEnd.Month.PaddingZero(), dtEnd.Day.PaddingZero());
-                var data = wc.DownloadData(url);
-                return JsonConvert.DeserializeObject<FX168Raw>(Encoding.UTF8.GetString(data));
+                wc.Headers.Add(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
+                var url = string.Format(_APIUrlFT, dt.Year, dt.Month.PaddingZero(), dt.Day.PaddingZero(), DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds);
+                byte[] data = null;
+                int count = 0;
+                while(true)
+                {
+                    try
+                    {
+                        Console.WriteLine("-> #{0} Time", ++count);
+                        data = wc.DownloadData(url);
+                        break;
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+                
+                data = DecompressGZip(data);
+                var match = Regex.Match(Encoding.UTF8.GetString(data), @"^CallbackFinanceListDataByDate\((?<data>.*?)\)$");
+                return match.Success ? JsonConvert.DeserializeObject<FX168Raw>(match.Groups["data"].Value) : null;
             }
         }
 
@@ -75,6 +102,42 @@ namespace FinCalendarParser
                 }
             }
             return events;
+        }
+
+        public static byte[] DecompressGZip(byte[] bytesToDecompress)
+        {
+            using (GZipStream stream = new GZipStream(new MemoryStream(bytesToDecompress), CompressionMode.Decompress))
+            {
+                const int size = 4096;
+                byte[] buffer = new byte[size];
+                using (MemoryStream memoryStream = new MemoryStream())
+                {
+                    int count;
+                    do
+                    {
+                        count = stream.Read(buffer, 0, size);
+                        if (count > 0)
+                        {
+                            memoryStream.Write(buffer, 0, count);
+                        }
+                    } while (count > 0);
+                    return memoryStream.ToArray();
+                }
+            }
+        }
+
+        public static byte[] CompressGZip(string input, Encoding encoding = null)
+        {
+            encoding = encoding ?? Encoding.Unicode;
+            byte[] bytes = encoding.GetBytes(input);
+            using (MemoryStream stream = new MemoryStream())
+            {
+                using (GZipStream zipStream = new GZipStream(stream, CompressionMode.Compress))
+                {
+                    zipStream.Write(bytes, 0, bytes.Length);
+                    return stream.ToArray();
+                }
+            }
         }
     }
 }

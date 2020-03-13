@@ -13,9 +13,9 @@ namespace FinCalendarParser
     {
         private static Dictionary<Locale, string> _APIUrlFTLocaleMap = new Dictionary<Locale, string>()
         {
-            {Locale.ZhCN, "https://www.dailyfx.com.hk/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
-            {Locale.ZhTW, "https://www.dailyfx.com.hk/cn/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
-            {Locale.EnUS, "https://www.dailyfx.com/economic-calendar/selectedDateData/{0}-{1}-{2}"}
+            {Locale.ZhCN, "http://www.dailyfx.com.hk/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
+            {Locale.ZhTW, "http://www.dailyfx.com.hk/cn/calendar/getData/{0}-{1}-{2}/{3}-{4}-{5}"},
+            {Locale.EnUS, "http://www.dailyfx.com/economic-calendar/selectedDateData/{0}-{1}-{2}"}
         };
 
         public Locale Locale { get; set; }

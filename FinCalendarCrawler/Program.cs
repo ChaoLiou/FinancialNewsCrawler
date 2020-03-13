@@ -5,34 +5,31 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace FinCalendarCrawler
 {
     /// <summary>
-    /// --source=dailyfx --date=2019-01-01 --locale=zh-tw --period=week
-    /// --source=dailyfx --date=2019-01-01 --locale=zh-tw --period=month
-    /// --source=dailyfx --date=2019-01-01 --locale=zh-cn --period=week
-    /// --source=dailyfx --date=2019-01-01 --locale=zh-cn --period=month
-    /// --source=dailyfx --date=2019-01-01 --locale=en-us --period=week
-    /// --source=dailyfx --date=2019-01-01 --locale=en-us --period=month
-    /// --source=jin10 --date=2019-01-01 --period=week
-    /// --source=jin10 --date=2019-01-01 --period=month
-    /// --source=fx168 --date=2019-01-01 --period=week
-    /// --source=fx168 --date=2019-01-01 --period=month
+    /// --src=dailyfx --date=2019-01-01 --period=week
+    /// --src=dailyfx --date=2019-01-01 --period=month
+    /// --src=jin10 --date=2019-01-01 --period=week
+    /// --src=jin10 --date=2019-01-01 --period=month
+    /// --src=fx168 --date=2019-01-01 --period=week
+    /// --src=fx168 --date=2019-01-01 --period=month
     /// </summary>
     public class Args
     {
         public string Source { get; set; }
         public string Date { get; set; }
         public string Period { get; set; }
+        public bool Translate { get; set; }
         public static bool Parsing(string[] args, out Args argsObj)
         {
             argsObj = new Args()
             {
                 Source = Filter(args, "--src="),
                 Date = Filter(args, "--date="),
-                Period = Filter(args, "--period=")
+                Period = Filter(args, "--period="),
+                Translate = args.Any(x => x == "--translate")
             };
 
             return !string.IsNullOrWhiteSpace(argsObj.Source);
@@ -50,7 +47,8 @@ namespace FinCalendarCrawler
             {
                 "[--{0}={{source}}]",
                 "[--{0}=2018-01-01|{{today}}]",
-                "[--{0}={{period}}]"
+                "[--{0}={{period}}]",
+                "[--{0}]"
             };
             return "Helper: FinCalendarCrawler.exe " + string.Join(" ",
                 typeof(Args).GetProperties()
@@ -62,6 +60,7 @@ namespace FinCalendarCrawler
 
     class Program
     {
+        public static bool _translate = false;
         static void Main(string[] args)
         {
             if (Args.Parsing(args, out Args argsObj))
@@ -71,19 +70,20 @@ namespace FinCalendarCrawler
                     DateTime.Parse(DateTime.Now.ToString("yyyy-MM-dd"));
                 var periodType = argsObj.Period.ParseToPeriod();
                 var sourceType = argsObj.Source.ParseToSource();
+                _translate = argsObj.Translate;
 
                 switch (sourceType)
                 {
                     case SourceType.DailyFX:
-                        ProcessDailyFX(dateTime, periodType, Locale.EnUS);
-                        ProcessDailyFX(dateTime, periodType, Locale.ZhCN);
-                        ProcessDailyFX(dateTime, periodType, Locale.ZhTW);
+                        Process<DailyFXParser, DailyFXEvent>(dateTime, periodType, Locale.EnUS);
+                        Process<DailyFXParser, DailyFXEvent>(dateTime, periodType, Locale.ZhCN);
+                        Process<DailyFXParser, DailyFXEvent>(dateTime, periodType, Locale.ZhTW);
                         break;
                     case SourceType.Jin10:
-                        ProcessJin10(dateTime, periodType);
+                        Process<Jin10Parser, Jin10Event>(dateTime, periodType);
                         break;
                     case SourceType.FX168:
-                        ProcessFX168(dateTime, periodType);
+                        Process<FX168Parser, FX168Event>(dateTime, periodType);
                         break;
                     default:
                         break;
@@ -95,52 +95,99 @@ namespace FinCalendarCrawler
             }
         }
 
-        private static void ProcessDailyFX(DateTime dateTime, PeriodType periodType, Locale locale)
+        private static void Process<T1, T2>(DateTime dateTime, PeriodType periodType, Locale locale)
         {
-            var parser = new DailyFXParser(locale);
-            var list = parser.Process(dateTime, periodType);
-            OutputDailyFXCSV(list, dateTime, locale, periodType);
+            var parser = Activator.CreateInstance(typeof(T1), locale);
+            Process<T1, T2>(parser, dateTime, periodType);
         }
 
-        private static void ProcessJin10(DateTime dateTime, PeriodType periodType)
+        private static void Process<T1, T2>(DateTime dateTime, PeriodType periodType)
         {
-            var parser = new Jin10Parser();
-            var list = parser.Process(dateTime, periodType);
-            OutputJin10CSV(list, dateTime, periodType);
+            var parser = Activator.CreateInstance<T1>();
+            Process<T1, T2>(parser, dateTime, periodType);
         }
 
-        private static void ProcessFX168(DateTime dateTime, PeriodType periodType)
+        private static void Process<T1, T2>(object parser, DateTime dateTime, PeriodType periodType)
         {
-            var parser = new FX168Parser();
-            var list = parser.Process(dateTime, periodType);
-            OutputFX168CSV(list, dateTime, periodType);
+            var processMethod = typeof(T1).GetMethod("Process");
+            var list = ((List<T2>)processMethod.Invoke(parser, new object[] { dateTime, periodType }));
+            var sourceName = typeof(T1).Name.Replace("Parser", "");
+            if (_translate)
+            {
+                var mapDirectoryName = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "0(1)(2)", sourceName);
+                var map0FileName = Path.Combine(mapDirectoryName, "0.csv");
+                var map1FileName = Path.Combine(mapDirectoryName, "1.csv");
+                var map2FileName = Path.Combine(mapDirectoryName, "2.csv");
+                if (File.Exists(map0FileName) && File.Exists(map1FileName) && File.Exists(map2FileName))
+                {
+                    var map0Content = File.ReadAllText(map0FileName);
+                    var map1Content = File.ReadAllText(map1FileName);
+                    var map2Content = File.ReadAllText(map2FileName);
+                    var maps = new Dictionary<int, Dictionary<string, string>>()
+                    {
+                        { 0, map0Content.ToMap() },
+                        { 1, map1Content.ToMap() },
+                        { 2, map2Content.ToMap() }
+                    };
+                    list = TranslateAllDesc(list, maps).ToList();
+                }
+            }
+            Output(list, dateTime, periodType);
         }
 
-        private static void OutputJin10CSV(List<Jin10Event> list, DateTime dateTime, PeriodType periodType)
+        private static IEnumerable<T> TranslateAllDesc<T>(IEnumerable<T> list, Dictionary<int, Dictionary<string, string>> maps)
         {
-            var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Revised,Affect" };
-            csvContents.AddRange(list.Select(x => x.ToString()));
-            var fileName = "Jin10_" + dateTime.ToString("yyyy-MM-dd") + "_" + periodType + ".csv";
-            var destination = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), fileName);
-            File.WriteAllLines(destination, csvContents, Encoding.UTF8);
+            return list.Select(e => TranslateDesc(e, maps[0]))
+                .Select(e => TranslateDesc(e, maps[1], putBehind: true))
+                .Select(e => TranslateDesc(e, maps[2], putBehind: true));
         }
 
-        private static void OutputDailyFXCSV(List<DailyFXEvent> list, DateTime dateTime, Locale locale, PeriodType periodType)
+        private static T TranslateDesc<T>(T @event, Dictionary<string, string> map, bool putBehind = false)
         {
-            var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Memo" };
-            csvContents.AddRange(list.Select(x => x.ToString()));
-            var fileName = "DailyFX_" + dateTime.ToString("yyyy-MM-dd") + "_" + periodType + "." + locale + ".csv";
-            var destination = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), fileName);
-            File.WriteAllLines(destination, csvContents, Encoding.UTF8);
+            var desc = (string)typeof(T).GetProperty("Description").GetValue(@event);
+            map.ToList().ForEach(x =>
+            {
+                if (desc.Contains(x.Key))
+                {
+                    if (putBehind)
+                    {
+                        desc = desc.Replace(x.Key, string.Empty);
+                        desc += x.Value;
+                    }
+                    else
+                    {
+                        desc = desc.Replace(x.Key, x.Value);
+                    }
+                }
+            });
+            typeof(T).GetProperty("Description").SetValue(@event, desc);
+            return @event;
         }
 
-        private static void OutputFX168CSV(List<FX168Event> list, DateTime dateTime, PeriodType periodType)
+        private static void Output<T>(List<T> list, DateTime dateTime, PeriodType periodType)
         {
-            var csvContents = new List<string>() { "Date,Time,Currency,Description,Importance,Previous,Forecast,Actual,Revised,DataTypeName,Type" };
-            csvContents.AddRange(list.Select(x => x.ToString()));
-            var fileName = "FX168_" + dateTime.ToString("yyyy-MM-dd") + "_" + periodType + ".csv";
-            var destination = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), fileName);
-            File.WriteAllLines(destination, csvContents, Encoding.UTF8);
+            var localePropName = "Locale";
+            var excludes = new string[] { localePropName };
+            var headers = typeof(T).GetProperties().Select(pi => pi.Name);
+            var hasLocaleProp = headers.Any(h => h == localePropName);
+            var headerRow = string.Join(",", headers.Where(h => !excludes.Contains(h)));
+
+            var contents = new List<string>() { headerRow };
+            contents.AddRange(list.Select(x => x.ToString()));
+
+            var fileNamePrefix = typeof(T).Name.Replace("Event", "");
+            var fileName = $"{fileNamePrefix}_{dateTime.ToString("yyyy-MM-dd")}_{periodType}";
+            if (hasLocaleProp)
+            {
+                var locale = typeof(T).GetProperty(localePropName).GetValue(list[0]);
+                fileName = $"{fileName}_{locale}";
+            }
+            if (_translate)
+            {
+                fileName = $"{fileName}_translate";
+            }
+            var destination = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), $"{fileName}.csv");
+            File.WriteAllLines(destination, contents, Encoding.UTF8);
         }
     }
 }
