@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace FinCalendarParser
@@ -14,6 +15,7 @@ namespace FinCalendarParser
     public class FX168Parser
     {
         private static string _APIUrlFT = "https://dataapi.2rich.net/InterfaceCollect/default.aspx?Code=fx168&bCode=IFinancialCalendarData{0}-{1}-{2}&succ_callback=CallbackFinanceListDataByDate&_={3}";
+        private static bool ONLY_MON_2_FRI = true;
         public List<FX168Event> Process(DateTime dateTime, PeriodType periodType)
         {
             DateTime? dtStart = null, dtEnd = null;
@@ -21,7 +23,7 @@ namespace FinCalendarParser
             {
                 case PeriodType.Week:
                     dtStart = dateTime.StartOfWeek(DayOfWeek.Monday);
-                    dtEnd = dateTime.StartOfWeek(DayOfWeek.Monday).AddDays(6);
+                    dtEnd = dateTime.StartOfWeek(DayOfWeek.Monday).AddDays(ONLY_MON_2_FRI ? 4 : 6);
                     break;
                 case PeriodType.Month:
                     var daysInMonth = DateTime.DaysInMonth(dateTime.Year, dateTime.Month);
@@ -38,8 +40,26 @@ namespace FinCalendarParser
                 var list = new List<FX168Event>();
                 while (date.CompareTo(dtEnd.Value) <= 0)
                 {
-                    list.AddRange(Transform(Process(date)));
+                    FX168Raw fx168Raw;
+                    do
+                    {
+                        fx168Raw = Process(date);
+                        if (fx168Raw != null && fx168Raw.List != null && fx168Raw.List.Any() && fx168Raw.List[0] != null && fx168Raw.List[0].FinancialCalendarData != null && fx168Raw.List[0].FinancialCalendarData.Any())
+                        {
+                            Console.WriteLine("{0} financial calendar data received", fx168Raw.List[0].FinancialCalendarData.Count);
+                            break;
+                        }
+                        else
+                        {
+                            Console.WriteLine("-> No data received, retry again...");
+                        }
+                    } while (true);
+                    list.AddRange(Transform(fx168Raw));
                     date = date.AddDays(1);
+                    if (ONLY_MON_2_FRI && (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday))
+                    {
+                        continue;
+                    }
                 }
                 return list;
             }
@@ -53,17 +73,17 @@ namespace FinCalendarParser
         {
             using (var wc = new WebClient())
             {
-                Console.WriteLine("Crawling on {0}...", dt.ToString(@"yyyy-MM-dd"));
+                Console.WriteLine("Crawling on {0}({1})...", dt.ToString(@"yyyy-MM-dd"), dt.DayOfWeek.ToString());
                 wc.Headers.Add(HttpRequestHeader.Referer, "https://datainfo.fx168.com/calendar.shtml");
                 wc.Headers.Add(HttpRequestHeader.AcceptEncoding, "gzip, deflate, br");
                 var url = string.Format(_APIUrlFT, dt.Year, dt.Month.PaddingZero(), dt.Day.PaddingZero(), DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds);
                 byte[] data = null;
                 int count = 0;
-                while(true)
+                while (true)
                 {
                     try
                     {
-                        Console.WriteLine("-> #{0} Time", ++count);
+                        Console.WriteLine(": #{0} Time", ++count);
                         data = wc.DownloadData(url);
                         break;
                     }
@@ -71,7 +91,6 @@ namespace FinCalendarParser
                     {
                     }
                 }
-                
                 data = DecompressGZip(data);
                 var match = Regex.Match(Encoding.UTF8.GetString(data), @"^CallbackFinanceListDataByDate\((?<data>.*?)\)$");
                 return match.Success ? JsonConvert.DeserializeObject<FX168Raw>(match.Groups["data"].Value) : null;
